@@ -1,10 +1,12 @@
+USE EventRegistration;
+
 CREATE TABLE Registrations (
     Id BIGINT NOT NULL AUTO_INCREMENT,
     EventId BIGINT NOT NULL,
     ParticipantId BIGINT NOT NULL,
     Status TINYINT NOT NULL,
     Notes VARCHAR(500) NULL,
-    RegisteredAt DATETIME NOT NULL DEFAULT UTC_TIMESTAMP(),
+    RegisteredAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CancelledAt DATETIME NULL,
 
     CONSTRAINT PK_Registrations PRIMARY KEY (Id),
