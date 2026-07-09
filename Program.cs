@@ -11,6 +11,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 const string FrontendCorsPolicy = "FrontendCorsPolicy";
 
+var builder = WebApplication.CreateBuilder(args);
+
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -35,10 +37,29 @@ builder.Services.AddSingleton<IEventRegistrationDatabase, EventRegistrationDatab
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
+builder.Services.AddSingleton<IEventRegistrationDatabase, EventRegistrationDatabase>();
+
+builder.Services.AddMediatR(cfg =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
+});
+
+builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy =>
+    {
+        policy
+            .WithOrigins("http://localhost:5173")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
+var app = builder.Build();
+
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 // Important: CORS must run before authorization and before MapControllers
 app.UseCors(FrontendCorsPolicy);
@@ -47,8 +68,10 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 // Keep this disabled for local HTTP frontend/backend testing.
 // app.UseHttpsRedirection();
+app.UseSwagger();
+app.UseSwaggerUI();
 
-app.UseAuthorization();
+app.UseCors("Frontend");
 
 app.MapControllers();
 

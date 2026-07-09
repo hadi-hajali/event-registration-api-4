@@ -1,3 +1,4 @@
+using System.Data;
 using EventRegistration.Api.Interfaces;
 using MySqlConnector;
 
@@ -24,5 +25,24 @@ public sealed class EventRegistrationDatabase : IEventRegistrationDatabase
         var connection = new MySqlConnection(_connectionString);
         await connection.OpenAsync();
         return connection;
+    }
+}
+    private readonly IConfiguration _configuration;
+
+    public EventRegistrationDatabase(IConfiguration configuration)
+    {
+        _configuration = configuration;
+    }
+
+    public IDbConnection Open()
+    {
+        var connectionString = _configuration.GetConnectionString("DefaultConnection");
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException("Database connection string is missing.");
+        }
+
+        return new MySqlConnection(connectionString);
     }
 }
