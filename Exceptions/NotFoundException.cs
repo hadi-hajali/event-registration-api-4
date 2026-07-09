@@ -6,3 +6,4 @@ public sealed class NotFoundException : Exception
     {
     }
 }
+}
