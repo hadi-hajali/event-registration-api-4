@@ -34,7 +34,7 @@ public static class GetParticipantById
                 WHERE Id = @Id;
                 """;
 
-            using var connection = _database.Open();
+            await using var connection = await _database.CreateConnectionAsync();
 
             var participant = await connection.QuerySingleOrDefaultAsync<ParticipantDto>(
                 sql,

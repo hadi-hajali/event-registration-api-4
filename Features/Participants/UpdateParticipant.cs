@@ -74,7 +74,7 @@ public static class UpdateParticipant
             var email = request.Email.Trim().ToLowerInvariant();
             var phone = request.Phone.Trim();
 
-            using var connection = _database.Open();
+            await using var connection = await _database.CreateConnectionAsync();
 
             const string existsSql = """
                 SELECT COUNT(*)

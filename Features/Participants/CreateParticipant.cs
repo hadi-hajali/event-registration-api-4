@@ -65,7 +65,7 @@ public static class CreateParticipant
             var email = request.Email.Trim().ToLowerInvariant();
             var phone = request.Phone.Trim();
 
-            using var connection = _database.Open();
+            await using var connection = await _database.CreateConnectionAsync();
 
             const string duplicateSql = """
                 SELECT COUNT(*)

@@ -56,7 +56,7 @@ public static class GetParticipants
                 LIMIT @PageSize OFFSET @Offset;
                 """;
 
-            using var connection = _database.Open();
+            await using var connection = await _database.CreateConnectionAsync();
 
             var parameters = new
             {

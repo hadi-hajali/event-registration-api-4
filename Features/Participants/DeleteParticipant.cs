@@ -20,7 +20,7 @@ public static class DeleteParticipant
 
         public async Task Handle(Command request, CancellationToken cancellationToken)
         {
-            using var connection = _database.Open();
+            await using var connection = await _database.CreateConnectionAsync();
 
             const string existsSql = """
                 SELECT COUNT(*)
