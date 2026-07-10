@@ -10,11 +10,12 @@ public sealed class EventRegistrationDatabase : IEventRegistrationDatabase
 
     public EventRegistrationDatabase(IConfiguration configuration)
     {
-        var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
+        var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")
+            ?? configuration["DB_CONNECTION_STRING"];
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
-            throw new InvalidOperationException("DB_CONNECTION_STRING environment variable is not set.");
+            throw new InvalidOperationException("DB_CONNECTION_STRING is not set.");
         }
 
         _connectionString = connectionString.Trim();
