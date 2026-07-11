@@ -27,27 +27,30 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Program>());
+builder.Services.AddMediatR(configuration =>
+    configuration.RegisterServicesFromAssemblyContaining<Program>());
+
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
-builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
-builder.Services.AddSingleton<IEventRegistrationDatabase, EventRegistrationDatabase>();
+
+builder.Services.AddTransient(
+    typeof(IPipelineBehavior<,>),
+    typeof(ValidationBehavior<,>));
+
+builder.Services.AddSingleton<
+    IEventRegistrationDatabase,
+    EventRegistrationDatabase>();
 
 var app = builder.Build();
 
-
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-// Important: CORS must run before authorization and before MapControllers
 app.UseCors(FrontendCorsPolicy);
 
-app.UseMiddleware<ExceptionHandlingMiddleware>();
-
-// Keep this disabled for local HTTP frontend/backend testing.
+// Keep HTTPS redirection disabled while testing locally with HTTP.
 // app.UseHttpsRedirection();
+
 app.UseSwagger();
 app.UseSwaggerUI();
-
-app.UseCors("Frontend");
 
 app.MapControllers();
 
