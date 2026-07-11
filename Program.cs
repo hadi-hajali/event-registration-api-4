@@ -21,7 +21,13 @@ builder.Services.AddCors(options =>
     options.AddPolicy(FrontendCorsPolicy, policy =>
     {
         policy
-            .WithOrigins("http://localhost:5173")
+            .WithOrigins(
+                "http://localhost:5173",
+                "http://localhost:5174",
+                "http://localhost:5175",
+                "http://127.0.0.1:5173",
+                "http://127.0.0.1:5174",
+                "http://127.0.0.1:5175")
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
@@ -46,7 +52,7 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.UseCors(FrontendCorsPolicy);
 
-// Keep HTTPS redirection disabled while testing locally with HTTP.
+// Keep this disabled for local HTTP frontend/backend testing.
 // app.UseHttpsRedirection();
 
 app.UseSwagger();
