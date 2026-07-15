@@ -1,4 +1,5 @@
 using Dapper;
+using FluentValidation;
 using MediatR;
 using EventRegistration.Api.Interfaces;
 
@@ -76,6 +77,18 @@ public static class GetParticipants
                 request.PageSize,
                 totalCount,
                 totalPages);
+        }
+    }
+
+    public sealed class Validator : AbstractValidator<Query>
+    {
+        public Validator()
+        {
+            RuleFor(x => x.Page)
+                .GreaterThanOrEqualTo(1).WithMessage("Page must be greater than or equal to 1.");
+
+            RuleFor(x => x.PageSize)
+                .InclusiveBetween(1, 100).WithMessage("PageSize must be between 1 and 100.");
         }
     }
 }

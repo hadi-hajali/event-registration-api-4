@@ -1,7 +1,9 @@
 using Dapper;
+using FluentValidation;
 using MediatR;
 using EventRegistration.Api.Exceptions;
 using EventRegistration.Api.Interfaces;
+using MySqlConnector;
 
 namespace EventRegistration.Api.Features.Participants;
 
@@ -10,9 +12,9 @@ public static class CreateParticipant
     public sealed record Command(
         string FullName,
         string Email,
-        string Phone,
+        string? Phone,
         DateTime? DateOfBirth,
-        bool IsActive
+        bool? IsActive
     ) : IRequest<ParticipantDto>;
 
     public sealed class Handler : IRequestHandler<Command, ParticipantDto>
@@ -26,44 +28,10 @@ public static class CreateParticipant
 
         public async Task<ParticipantDto> Handle(Command request, CancellationToken cancellationToken)
         {
-            if (string.IsNullOrWhiteSpace(request.FullName))
-            {
-                throw new AppValidationException("Invalid input.", ["Full name is required."]);
-            }
-
-            if (request.FullName.Trim().Length > 150)
-            {
-                throw new AppValidationException("Invalid input.", ["Full name maximum length is 150."]);
-            }
-
-            if (string.IsNullOrWhiteSpace(request.Email))
-            {
-                throw new AppValidationException("Invalid input.", ["Email is required."]);
-            }
-
-            if (request.Email.Trim().Length > 255)
-            {
-                throw new AppValidationException("Invalid input.", ["Email maximum length is 255."]);
-            }
-
-            if (string.IsNullOrWhiteSpace(request.Phone))
-            {
-                throw new AppValidationException("Invalid input.", ["Phone is required."]);
-            }
-
-            if (request.Phone.Trim().Length > 30)
-            {
-                throw new AppValidationException("Invalid input.", ["Phone maximum length is 30."]);
-            }
-
-            if (request.DateOfBirth is not null && request.DateOfBirth.Value.Date > DateTime.UtcNow.Date)
-            {
-                throw new AppValidationException("Invalid input.", ["Date of birth cannot be in the future."]);
-            }
-
             var fullName = request.FullName.Trim();
             var email = request.Email.Trim().ToLowerInvariant();
-            var phone = request.Phone.Trim();
+            var phone = request.Phone?.Trim() ?? string.Empty;
+            var isActive = request.IsActive ?? true;
 
             await using var connection = await _database.CreateConnectionAsync();
 
@@ -103,16 +71,25 @@ public static class CreateParticipant
                 SELECT LAST_INSERT_ID();
                 """;
 
-            var id = await connection.ExecuteScalarAsync<ulong>(
-                insertSql,
-                new
-                {
-                    FullName = fullName,
-                    Email = email,
-                    Phone = phone,
-                    DateOfBirth = request.DateOfBirth?.Date,
-                    request.IsActive
-                });
+            ulong id;
+
+            try
+            {
+                id = await connection.ExecuteScalarAsync<ulong>(
+                    insertSql,
+                    new
+                    {
+                        FullName = fullName,
+                        Email = email,
+                        Phone = phone,
+                        DateOfBirth = request.DateOfBirth?.Date,
+                        IsActive = isActive
+                    });
+            }
+            catch (MySqlException ex) when (ex.Number == 1062)
+            {
+                throw new DuplicateResourceException("Participant email already exists.");
+            }
 
             const string selectSql = """
                 SELECT
@@ -131,6 +108,29 @@ public static class CreateParticipant
             return await connection.QuerySingleAsync<ParticipantDto>(
                 selectSql,
                 new { Id = id });
+        }
+    }
+
+    public sealed class Validator : AbstractValidator<Command>
+    {
+        public Validator()
+        {
+            RuleFor(x => x.FullName)
+                .NotEmpty().WithMessage("Full name is required.")
+                .MaximumLength(150).WithMessage("Full name maximum length is 150.");
+
+            RuleFor(x => x.Email)
+                .NotEmpty().WithMessage("Email is required.")
+                .EmailAddress().WithMessage("Email must be a valid email address.")
+                .MaximumLength(255).WithMessage("Email maximum length is 255.");
+
+            RuleFor(x => x.Phone)
+                .MaximumLength(30).WithMessage("Phone maximum length is 30.")
+                .When(x => !string.IsNullOrWhiteSpace(x.Phone));
+
+            RuleFor(x => x.DateOfBirth)
+                .Must(dateOfBirth => dateOfBirth is null || dateOfBirth.Value.Date <= DateTime.UtcNow.Date)
+                .WithMessage("Date of birth cannot be in the future.");
         }
     }
 }

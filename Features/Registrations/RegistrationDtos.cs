@@ -8,12 +8,19 @@ public sealed class RegistrationResponse
     public ulong ParticipantId { get; set; }
     public string ParticipantName { get; set; } = string.Empty;
     public string ParticipantEmail { get; set; } = string.Empty;
+    public string ParticipantPhone { get; set; } = string.Empty;
     public int Status { get; set; }
+    public string StatusName { get; set; } = string.Empty;
     public string? Notes { get; set; }
     public DateTime RegisteredAt { get; set; }
     public DateTime? CancelledAt { get; set; }
 }
 
-public sealed record CreateRegistrationRequest(ulong EventId, ulong ParticipantId, string? Notes);
+public sealed record CreateRegistrationRequest(ulong ParticipantId, string? Notes);
 
-public sealed record RegistrationListItem(ulong Id, ulong EventId, string EventName, ulong ParticipantId, string ParticipantName, string ParticipantEmail, int Status, string? Notes, DateTime RegisteredAt, DateTime? CancelledAt);
+public sealed record PagedRegistrationResponse(
+    IReadOnlyList<RegistrationResponse> Items,
+    int Page,
+    int PageSize,
+    long TotalCount,
+    int TotalPages);

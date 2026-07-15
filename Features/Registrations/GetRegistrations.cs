@@ -1,12 +1,13 @@
 using Dapper;
 using EventRegistration.Api.Interfaces;
+using FluentValidation;
 using MediatR;
 
 namespace EventRegistration.Api.Features.Registrations;
 
-public sealed record GetRegistrationsQuery(int Page, int PageSize, string? Search, int? Status, ulong? EventId, ulong? ParticipantId) : IRequest<IReadOnlyList<RegistrationResponse>>;
+public sealed record GetRegistrationsQuery(ulong EventId, int Page, int PageSize, string? Search, int? Status, ulong? ParticipantId) : IRequest<PagedRegistrationResponse>;
 
-public sealed class GetRegistrationsQueryHandler : IRequestHandler<GetRegistrationsQuery, IReadOnlyList<RegistrationResponse>>
+public sealed class GetRegistrationsQueryHandler : IRequestHandler<GetRegistrationsQuery, PagedRegistrationResponse>
 {
     private readonly IEventRegistrationDatabase _database;
 
@@ -15,14 +16,15 @@ public sealed class GetRegistrationsQueryHandler : IRequestHandler<GetRegistrati
         _database = database;
     }
 
-    public async Task<IReadOnlyList<RegistrationResponse>> Handle(GetRegistrationsQuery request, CancellationToken cancellationToken)
+    public async Task<PagedRegistrationResponse> Handle(GetRegistrationsQuery request, CancellationToken cancellationToken)
     {
-        var offset = Math.Max(0, request.Page - 1) * Math.Max(1, request.PageSize);
+        var offset = (request.Page - 1) * request.PageSize;
 
         await using var connection = await _database.CreateConnectionAsync();
 
-        var whereClauses = new List<string>();
+        var whereClauses = new List<string> { "r.EventId = @EventId" };
         var parameters = new DynamicParameters();
+        parameters.Add("EventId", request.EventId);
 
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
@@ -36,12 +38,6 @@ public sealed class GetRegistrationsQueryHandler : IRequestHandler<GetRegistrati
             parameters.Add("Status", request.Status.Value);
         }
 
-        if (request.EventId.HasValue)
-        {
-            whereClauses.Add("r.EventId = @EventId");
-            parameters.Add("EventId", request.EventId.Value);
-        }
-
         if (request.ParticipantId.HasValue)
         {
             whereClauses.Add("r.ParticipantId = @ParticipantId");
@@ -50,7 +46,14 @@ public sealed class GetRegistrationsQueryHandler : IRequestHandler<GetRegistrati
 
         var where = whereClauses.Count > 0 ? "WHERE " + string.Join(" AND ", whereClauses) : string.Empty;
 
-        var sql = $@"
+        var countSql = $@"
+            SELECT COUNT(*)
+            FROM Registrations r
+            INNER JOIN Events e ON r.EventId = e.Id
+            INNER JOIN Participants p ON r.ParticipantId = p.Id
+            {where}";
+
+        var dataSql = $@"
             SELECT
                 r.Id,
                 r.EventId,
@@ -58,7 +61,9 @@ public sealed class GetRegistrationsQueryHandler : IRequestHandler<GetRegistrati
                 r.ParticipantId,
                 p.FullName AS ParticipantName,
                 p.Email AS ParticipantEmail,
+                p.Phone AS ParticipantPhone,
                 r.Status,
+                CASE r.Status WHEN 1 THEN 'Active' WHEN 2 THEN 'Cancelled' ELSE 'Unknown' END AS StatusName,
                 r.Notes,
                 r.RegisteredAt,
                 r.CancelledAt
@@ -69,10 +74,24 @@ public sealed class GetRegistrationsQueryHandler : IRequestHandler<GetRegistrati
             ORDER BY r.RegisteredAt DESC
             LIMIT @PageSize OFFSET @Offset";
 
-        parameters.Add("PageSize", Math.Max(1, request.PageSize));
+        parameters.Add("PageSize", request.PageSize);
         parameters.Add("Offset", offset);
 
-        var rows = await connection.QueryAsync<RegistrationResponse>(sql, parameters);
-        return rows.ToList();
+        var totalCount = await connection.ExecuteScalarAsync<long>(countSql, parameters);
+        var rows = (await connection.QueryAsync<RegistrationResponse>(dataSql, parameters)).ToList();
+        var totalPages = (int)Math.Ceiling(totalCount / (double)request.PageSize);
+
+        return new PagedRegistrationResponse(rows, request.Page, request.PageSize, totalCount, totalPages);
+    }
+}
+
+public sealed class GetRegistrationsQueryValidator : AbstractValidator<GetRegistrationsQuery>
+{
+    public GetRegistrationsQueryValidator()
+    {
+        RuleFor(x => x.EventId).NotEmpty().WithMessage("EventId is required.");
+        RuleFor(x => x.Page).GreaterThanOrEqualTo(1).WithMessage("Page must be greater than or equal to 1.");
+        RuleFor(x => x.PageSize).InclusiveBetween(1, 100).WithMessage("PageSize must be between 1 and 100.");
+        RuleFor(x => x.Status).Must(x => x is null or 1 or 2).WithMessage("Status must be 1 or 2.");
     }
 }

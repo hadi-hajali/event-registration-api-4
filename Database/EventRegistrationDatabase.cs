@@ -1,6 +1,7 @@
 using System.Data;
 using EventRegistration.Api.Interfaces;
 using MySqlConnector;
+using MySqlConnector.Core;
 
 namespace EventRegistration.Api.Database;
 
@@ -17,7 +18,14 @@ public sealed class EventRegistrationDatabase : IEventRegistrationDatabase
             throw new InvalidOperationException("DB_CONNECTION_STRING environment variable is not set.");
         }
 
-        _connectionString = connectionString.Trim();
+        var builder = new MySqlConnectionStringBuilder(connectionString.Trim());
+        if (!connectionString.Contains("sslmode", StringComparison.OrdinalIgnoreCase)
+            && !connectionString.Contains("ssl mode", StringComparison.OrdinalIgnoreCase))
+        {
+            builder.SslMode = MySqlSslMode.None;
+        }
+
+        _connectionString = builder.ConnectionString;
     }
 
     public async Task<MySqlConnection> CreateConnectionAsync()

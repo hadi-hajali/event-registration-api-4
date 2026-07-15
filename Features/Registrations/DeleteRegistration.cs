@@ -31,7 +31,9 @@ public sealed class DeleteRegistrationCommandHandler : IRequestHandler<DeleteReg
             throw new NotFoundException("Registration not found.");
 
         const string deleteSql = @"
-            DELETE FROM Registrations
+            UPDATE Registrations
+            SET Status = 2,
+                CancelledAt = COALESCE(CancelledAt, UTC_TIMESTAMP())
             WHERE Id = @Id";
 
         await connection.ExecuteAsync(deleteSql, new { Id = request.Id });

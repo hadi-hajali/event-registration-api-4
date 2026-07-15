@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using EventRegistration.Api.Exceptions;
+using FluentValidation;
 
 namespace EventRegistration.Api.Middlewares;
 
@@ -33,34 +34,46 @@ public sealed class ExceptionHandlingMiddleware
         var statusCode = exception switch
         {
             NotFoundException => (int)HttpStatusCode.NotFound,
+            DuplicateResourceException => (int)HttpStatusCode.Conflict,
+            BusinessException => (int)HttpStatusCode.Conflict,
             ConflictException => (int)HttpStatusCode.Conflict,
+            AppValidationException => (int)HttpStatusCode.BadRequest,
             EventRegistration.Api.Exceptions.ValidationException => (int)HttpStatusCode.BadRequest,
+            FluentValidation.ValidationException => (int)HttpStatusCode.BadRequest,
             _ => (int)HttpStatusCode.InternalServerError
         };
 
         context.Response.StatusCode = statusCode;
-        context.Response.ContentType = "application/problem+json";
+        context.Response.ContentType = "application/json";
 
-        object payload;
-        if (exception is EventRegistration.Api.Exceptions.ValidationException validationException)
+        var errors = exception switch
         {
-            payload = new
-            {
-                title = "Validation failed",
-                status = statusCode,
-                errors = validationException.Errors
-            };
-        }
-        else
-        {
-            payload = new
-            {
-                title = exception.Message,
-                status = statusCode
-            };
-        }
+            EventRegistration.Api.Exceptions.ValidationException validationException => validationException.Errors
+                .SelectMany(x => x.Value)
+                .ToArray(),
+            AppValidationException appValidationException => appValidationException.Errors.ToArray(),
+            FluentValidation.ValidationException fluentValidationException => fluentValidationException.Errors
+                .Select(x => x.ErrorMessage)
+                .ToArray(),
+            _ => Array.Empty<string>()
+        };
 
-        return context.Response.WriteAsync(JsonSerializer.Serialize(payload));
+        var payload = new
+        {
+            success = false,
+            timestamp = DateTimeOffset.UtcNow,
+            message = statusCode == (int)HttpStatusCode.InternalServerError
+                ? "An unexpected error occurred."
+                : exception.Message,
+            errors
+        };
+
+        return context.Response.WriteAsync(JsonSerializer.Serialize(
+            payload,
+            new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            }));
     }
 }
 

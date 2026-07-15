@@ -28,7 +28,9 @@ public sealed class GetRegistrationByIdQueryHandler : IRequestHandler<GetRegistr
                 r.ParticipantId,
                 p.FullName AS ParticipantName,
                 p.Email AS ParticipantEmail,
+                p.Phone AS ParticipantPhone,
                 r.Status,
+                CASE r.Status WHEN 1 THEN 'Active' WHEN 2 THEN 'Cancelled' ELSE 'Unknown' END AS StatusName,
                 r.Notes,
                 r.RegisteredAt,
                 r.CancelledAt
